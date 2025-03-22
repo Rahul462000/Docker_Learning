@@ -1,0 +1,36 @@
+# 1️⃣ First stage: Build the application
+FROM python:3.11-alpine AS builder
+
+# Set working directory
+WORKDIR /usr/src/app
+
+# Copy requirements file separately for better caching
+COPY requirements.txt .
+
+# Install dependencies in a separate directory to avoid unnecessary files
+RUN pip install --no-cache-dir --target=/usr/src/app/deps -r requirements.txt
+
+# Copy the application files
+COPY . .
+
+# Remove unnecessary files to shrink final image size
+RUN rm -rf tests __pycache__
+
+# 2️⃣ Second stage: Run the application with a Distroless image
+FROM gcr.io/distroless/python3-debian12 AS runner
+
+# Set working directory (custom name instead of /app)
+WORKDIR /python_app
+
+# Copy only necessary files from the builder stage
+COPY --from=builder /usr/src/app /python_app
+COPY --from=builder /usr/src/app/deps /usr/local/lib/python3.11/site-packages
+
+# Set a non-root user for better security
+USER nonroot
+
+# Expose application port (if needed)
+EXPOSE 5000
+
+# Command to run the application
+CMD ["app.py"]
